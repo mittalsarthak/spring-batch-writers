@@ -1,5 +1,6 @@
 package com.swt.batchwriters;
 
+import com.swt.batchwriters.listener.ProductSkipListener;
 import com.swt.batchwriters.model.Product;
 import com.swt.batchwriters.processor.ProductProcessor;
 import org.springframework.batch.core.Job;
@@ -9,13 +10,11 @@ import org.springframework.batch.core.configuration.annotation.JobBuilderFactory
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
+import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
 import org.springframework.batch.item.database.ItemPreparedStatementSetter;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
-import org.springframework.batch.item.file.FlatFileFooterCallback;
-import org.springframework.batch.item.file.FlatFileHeaderCallback;
-import org.springframework.batch.item.file.FlatFileItemReader;
-import org.springframework.batch.item.file.FlatFileItemWriter;
+import org.springframework.batch.item.file.*;
 import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
 import org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor;
@@ -175,11 +174,16 @@ public class BatchConfig {
         return steps.get("step1").
                 <Product,Product>chunk(1)
                 .reader(flatFileItemReader(null))
-//                .writer(flatFileItemWriter(null))
-                .writer(xmlWriter(null))
+                .writer(flatFileItemWriter(null))
+//                .writer(xmlWriter(null))
 //                .writer(jdbcBatchItemWriter())
 //                .writer(dbwriter())
-                .processor(new ProductProcessor())
+                .faultTolerant()
+                .skip(FlatFileParseException.class)
+//                .skipLimit(3)
+                .skipPolicy(new AlwaysSkipItemSkipPolicy())
+//                .processor(new ProductProcessor())
+                .listener(new ProductSkipListener())
                 .build();
     }
 
