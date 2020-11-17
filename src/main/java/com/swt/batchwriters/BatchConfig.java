@@ -1,12 +1,17 @@
 package com.swt.batchwriters;
 
 import com.swt.batchwriters.model.Product;
+import com.swt.batchwriters.processor.ProductProcessor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.core.launch.support.RunIdIncrementer;
+import org.springframework.batch.item.database.ItemPreparedStatementSetter;
+import org.springframework.batch.item.database.JdbcBatchItemWriter;
+import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.item.file.FlatFileFooterCallback;
 import org.springframework.batch.item.file.FlatFileHeaderCallback;
 import org.springframework.batch.item.file.FlatFileItemReader;
@@ -25,8 +30,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.oxm.xstream.XStreamMarshaller;
 
+import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.Writer;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
@@ -40,6 +48,9 @@ public class BatchConfig {
 
     @Autowired
     private JobBuilderFactory jobs;
+
+    @Autowired
+    private DataSource datasource;
 
     @StepScope
     @Bean
@@ -131,18 +142,51 @@ public class BatchConfig {
     }
 
     @Bean
+    public JdbcBatchItemWriter jdbcBatchItemWriter(){
+        JdbcBatchItemWriter writer = new JdbcBatchItemWriter();
+        writer.setDataSource(datasource);
+        writer.setSql("INSERT INTO products (\"productId\",\"productName\",\"productDesc\",price,unit) " +
+                "VALUES (?, ?, ?, ?, ?);");
+        writer.setItemPreparedStatementSetter(new ItemPreparedStatementSetter<Product>() {
+            @Override
+            public void setValues(Product item, PreparedStatement ps) throws SQLException {
+                ps.setInt(1,item.getProductId());
+                ps.setString(2, item.getProductName());
+                ps.setString(3, item.getProductDesc());
+                ps.setBigDecimal(4,item.getPrice());
+                ps.setInt(5,item.getUnit());
+            }
+        });
+        return writer;
+    }
+    //Another way to create a writer in database
+    @Bean
+    public JdbcBatchItemWriter dbwriter(){
+        return new JdbcBatchItemWriterBuilder<Product>()
+                .dataSource(this.datasource)
+                .sql("INSERT INTO products (\"productId\",\"productName\",\"productDesc\",price,unit) " +
+                        "VALUES (:productId,:productName,:productDesc,:price,:unit);")
+                .beanMapped()
+                .build();
+    }
+
+    @Bean
     public Step step1(){
         return steps.get("step1").
                 <Product,Product>chunk(1)
                 .reader(flatFileItemReader(null))
 //                .writer(flatFileItemWriter(null))
                 .writer(xmlWriter(null))
+//                .writer(jdbcBatchItemWriter())
+//                .writer(dbwriter())
+                .processor(new ProductProcessor())
                 .build();
     }
 
     @Bean
     public Job batchWriteJob(){
         return jobs.get("batchWriteJob")
+                .incrementer(new RunIdIncrementer())
                 .start(step1())
                 .build();
     }
