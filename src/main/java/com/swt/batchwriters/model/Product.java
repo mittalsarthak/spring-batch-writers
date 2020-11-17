@@ -1,11 +1,15 @@
 package com.swt.batchwriters.model;
 
 
+import com.thoughtworks.xstream.annotations.XStreamAlias;
+
 import java.math.BigDecimal;
 
 public class Product {
     private int productId;
     private String productName;
+    // to add the alias for xml tag if this is not specified then parameter name will becomes the tag name
+    @XStreamAlias("ProductDescription")
     private String productDesc;
     private BigDecimal price;
     private Integer unit;
