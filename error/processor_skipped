@@ -1,0 +1,5 @@
+Product{productId=2, productName='Dell', productDesc='dell laptop computer', price=3000, unit=15}
+Product{productId=2, productName='Dell', productDesc='dell laptop computer', price=3000, unit=15}
+Product{productId=9, productName='office', productDesc='ms office software', price=196, unit=23}
+Product{productId=9, productName='office', productDesc='ms office software', price=196, unit=23}
+Product{productId=9, productName='office', productDesc='ms office software', price=196, unit=23}

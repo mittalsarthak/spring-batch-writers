@@ -3,6 +3,8 @@ package com.swt.batchwriters;
 import com.swt.batchwriters.listener.ProductSkipListener;
 import com.swt.batchwriters.model.Product;
 import com.swt.batchwriters.processor.ProductProcessor;
+import com.swt.batchwriters.reader.ProductServiceAdapter;
+import com.swt.batchwriters.service.ProductService;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
@@ -11,6 +13,7 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.step.skip.AlwaysSkipItemSkipPolicy;
+import org.springframework.batch.item.adapter.ItemReaderAdapter;
 import org.springframework.batch.item.database.ItemPreparedStatementSetter;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
@@ -28,6 +31,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.oxm.xstream.XStreamMarshaller;
+import org.springframework.web.client.ResourceAccessException;
 
 import javax.sql.DataSource;
 import java.io.IOException;
@@ -37,6 +41,7 @@ import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 
 @EnableBatchProcessing
 @Configuration
@@ -50,6 +55,18 @@ public class BatchConfig {
 
     @Autowired
     private DataSource datasource;
+
+    @Autowired
+    private ProductServiceAdapter productServiceAdapter;
+
+    @Bean
+    public ItemReaderAdapter serviceAdapter(){
+        ItemReaderAdapter reader = new ItemReaderAdapter();
+        reader.setTargetObject(productServiceAdapter);
+        reader.setTargetMethod("nextProduct");
+        return reader;
+    }
+
 
     @StepScope
     @Bean
@@ -86,6 +103,17 @@ public class BatchConfig {
             FileSystemResource outputFile
     ){
         FlatFileItemWriter writer = new FlatFileItemWriter();
+//        Code to throw error for some data
+//        FlatFileItemWriter writer = new FlatFileItemWriter<Product>(){
+//            @Override
+//            public String doWrite(List<? extends Product> items) {
+//                for (Product p: items){
+//                    if(p.getProductId() == 9)
+//                        throw new RuntimeException("Id is 9");
+//                }
+//                return super.doWrite(items);
+//            }
+//        };
         writer.setResource(outputFile);
 
         writer.setLineAggregator(new DelimitedLineAggregator(){
@@ -172,18 +200,23 @@ public class BatchConfig {
     @Bean
     public Step step1(){
         return steps.get("step1").
-                <Product,Product>chunk(1)
-                .reader(flatFileItemReader(null))
+                <Product,Product>chunk(3)
+                .reader(serviceAdapter())
+//                .reader(flatFileItemReader(null))
                 .writer(flatFileItemWriter(null))
 //                .writer(xmlWriter(null))
 //                .writer(jdbcBatchItemWriter())
 //                .writer(dbwriter())
                 .faultTolerant()
-                .skip(FlatFileParseException.class)
-//                .skipLimit(3)
-                .skipPolicy(new AlwaysSkipItemSkipPolicy())
+                .retry(ResourceAccessException.class)
+                .retryLimit(5)
+//                .skip(FlatFileParseException.class)
+//                .skip(RuntimeException.class)
+                .skip(ResourceAccessException.class)
+                .skipLimit(30)
+//                .skipPolicy(new AlwaysSkipItemSkipPolicy())
 //                .processor(new ProductProcessor())
-                .listener(new ProductSkipListener())
+//                .listener(new ProductSkipListener())
                 .build();
     }
 
